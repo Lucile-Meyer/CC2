@@ -1,0 +1,120 @@
+---
+title: "R Notebook"
+output: 
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+
+# Extraction des données
+```{r}
+library(dada2)
+path <- "~/Git/CC2/CC2/data"
+list.files(path)
+```
+Après avoir dézipper notre jeu de données, on va l'importer dans un objet path qui regroupera les différentes données.
+
+```{r}
+fnFs <- sort(list.files(path, pattern="1.fastq", full.names = TRUE))
+fnRs <- sort(list.files(path, pattern="2.fastq", full.names = TRUE))
+sample.namesFs <- sapply(strsplit(basename(fnFs), "\\."), `[`, 1)
+sample.namesRs <- sapply(strsplit(basename(fnRs), "\\."), `[`, 1)
+sample.namesFs
+```
+```{r}
+sample.namesRs
+```
+On va séparer notre jeu de données en plaçant dans un objet fnFs tous les reads foward, donc les reads 1. On placera donc dans un objet fnRs tous les reads reverse, donc les reads 2
+
+# Analyse qualité des reads
+
+```{r}
+plotQualityProfile(fnFs[1:2])
+```
+```{r}
+plotQualityProfile(fnRs[1:2])
+```
+Avec cette fonction on va regarder les scores qualités de nos deux premières données présentes dans fnFs et fnRs. Un plot sera donc réalisé permettant de visualiser le profil qualité de ces séquences. On retrouve le score qualité en ordonnée et la longueur des séquences en abscisse. La ligne verte correspond au score de qualité des nucléotides de chaque séquence. La ligne orange représente la longueur de chaque read (sachant qu'avec illumina on a des read de 250 pb). On remarque que les read Forwards ont un bon score de qualité qui ne semble pas descendre en desosus du Q30 avant les 230-240 pb. Pour les reads Reverse on remarque que les score qualités sont un peu moins bon. En effet ils descendent en dessous du Q30 vers les 200 pb.
+
+```{r}
+filtFs <- file.path(path, "filtered", paste0(sample.namesFs, "_R1.fastq"))
+filtRs <- file.path(path, "filtered", paste0(sample.namesRs, "_R2.fastq"))
+names(filtFs) <- sample.namesFs
+names(filtRs) <- sample.namesRs
+filtFs
+```
+```{r}
+filtRs
+```
+Cette fonction permet de ranger les fichiers dans un dossiers filtered avec des objets filtFs et Rs
+respectivement pour les fichiers Forward et Reverse.
+
+```{r}
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, trimLeft= 21, truncLen=c(240,200),
+              maxN=0, maxEE=c(2,2), truncQ=2, rm.phix=TRUE,
+              compress=TRUE, multithread=TRUE)
+head(out)
+```
+Cette fonction va nous permettre de couper et de filtrer nos reads grâce au filterAndTrim. La fonction truncLen va permettre de couper les reads forward et reverse à l'endroit indiqué. Nous avons choisi de couper les reads Forwards à 240 pb et les reads Reverses à 200 pb. En effet nous avons vu précédement qu'au delà de 240 pb les scores qualité n'étaient pas bon pour les forwards (200 pb pour les reads reverses). La fonction maxEE=c(2,2) va nous permettre d’écarter les reads avec
+un score de qualité inférieur à Q20, c'est à dire les séquences ayant  1 erreur toutes les 100 paires de bases en moyenne. Le timLeft va permettre d'enlever les primer sur nos reads Forwards et Reverses. La valeur du reads.in nous indique le nombre de reads initial et reads.out le nombre de reads apres filtrage qualité. On peut voir qu'on ne perds pas beaucoup de reads.
+
+## Calcul du modèle d'erreur
+
+```{r}
+errF <- learnErrors(filtFs, multithread=TRUE)
+```
+```{r}
+errR <- learnErrors(filtRs, multithread=TRUE)
+```
+LearnErrors va permettre de générer un algorithme mathématique avec nos données filtrées dans filtFs et filtRs. Ca va permettre de créer un modèle d'erreur permettant par la suite de corriger les erreurs sur nos reads.
+
+```{r}
+plotErrors(errF, nominalQ = TRUE)
+```
+```{r}
+plotErrors(errR, nominalQ = TRUE)
+```
+On a tracer des graphiques reprèsentant les erreurs sur nos différentes reads (forwards et reverses)
+
+# Apliccation du modèle d'erreur
+
+```{r}
+dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
+```
+fgh
+```{r}
+dadaRs <- dada(filtRs, err=errR, multithread=TRUE)
+```
+sdfg
+
+# Assemblage des reads
+
+```{r}
+mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
+```
+dsfg
+
+# Contruction de la table de séquence
+
+```{r}
+seqtab <- makeSequenceTable(mergers)
+dim(seqtab)
+```
+
+# Identification et retrait des chimères
+
+```{r}
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+```
+fghj
+
+```{r}
+dim(seqtab.nochim)
+```
+dfghj
+
+```{r}
+sum(seqtab.nochim)/sum(seqtab)
+```
+fgh
